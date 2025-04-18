@@ -28,8 +28,14 @@ function App() {
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
       </p>
+      <div className="p-10 bg-red-600 text-white text-2xl font-bold rounded-lg shadow-lg">
+      Tailwind is working!
+    </div>
     </>
   )
 }
+
+
+
 
 export default App
