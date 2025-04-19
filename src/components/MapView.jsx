@@ -37,32 +37,33 @@ export default function MapView() {
   const [username, setUsername] = useState(null);
 
   useEffect(() => {
+    const loadUserInfo = async (user) => {
+      if (!user) return;
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single();
+      console.log('Fetched profile:', profile, 'error:', error);
+      setUsername(profile?.username || null);
+    };
+    
     supabase.auth.getUser().then(async ({ data }) => {
       const user = data?.user || null;
-      if (user) {
-        setUser(user);
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', user.id)
-          .single();
-        setUsername(profile?.username || null);
-      }
+      setUser(user);
+      await loadUserInfo(user);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const user = session?.user || null;
       setUser(user);
-
+      await loadUserInfo(user);
+    
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', user.id)
-          .single();
-        setUsername(profile?.username || null);
+        setShowSignup(false); // ✅ Hide modal after login
       }
     });
+    
 
     return () => listener?.subscription.unsubscribe();
   }, []);
@@ -112,7 +113,7 @@ export default function MapView() {
           </button>
           {user ? (
             <>
-              <span className="text-sm">👤 {username}</span>
+              <span className="text-sm">👤 {username ?? '...'}</span>
               <button
                 onClick={async () => {
                   await supabase.auth.signOut();
