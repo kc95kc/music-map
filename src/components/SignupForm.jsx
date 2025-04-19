@@ -2,79 +2,132 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export default function SignupForm() {
+  const [mode, setMode] = useState('signup'); // 'signup' or 'signin'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [confirm, setConfirm] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSignUp = async (e) => {
+  const handleAuth = async (e) => {
     e.preventDefault();
+    setMessage('');
+    setLoading(true);
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (authError) {
-      setErrorMsg(authError.message);
+    if (mode === 'signup' && password !== confirm) {
+      setMessage("Passwords don't match.");
+      setLoading(false);
       return;
     }
 
-    const userId = authData.user?.id;
-    if (!userId) {
-      setErrorMsg('Failed to get user ID.');
-      return;
-    }
+    const authFunc =
+      mode === 'signup'
+        ? supabase.auth.signUp
+        : supabase.auth.signInWithPassword;
 
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert([{ id: userId, username }]);
+        let data, error;
 
-    if (profileError) {
-      setErrorMsg(profileError.message);
+        if (mode === 'signup') {
+          ({ data, error } = await supabase.auth.signUp({
+            email,
+            password,
+          }));
+        } else {
+          ({ data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          }));
+        }
+        
+
+    setLoading(false);
+
+    if (error) {
+      setMessage(error.message);
     } else {
-      setSuccess(true);
-      setErrorMsg('');
+      setMessage(
+        mode === 'signup'
+          ? 'Check your email to confirm your account.'
+          : 'Signed in successfully!'
+      );
     }
   };
 
   return (
-    <form onSubmit={handleSignUp} className="max-w-md p-6 mx-auto mt-10 bg-white rounded shadow space-y-4">
-      <h2 className="text-xl font-bold">Sign Up</h2>
-      {errorMsg && <p className="text-red-500">{errorMsg}</p>}
-      {success && <p className="text-green-600">Signup successful! Check your email to confirm.</p>}
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-center">
+        {mode === 'signup' ? 'Create an Account' : 'Sign In'}
+      </h2>
 
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="w-full p-2 border rounded"
-        required
-      />
+      <form onSubmit={handleAuth} className="space-y-3">
+        <div>
+          <label className="block text-sm font-medium">Email</label>
+          <input
+            type="email"
+            className="w-full border p-2 rounded"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
 
-      <input
-        type="text"
-        placeholder="Username"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        className="w-full p-2 border rounded"
-        required
-      />
+        <div>
+          <label className="block text-sm font-medium">Password</label>
+          <input
+            type="password"
+            className="w-full border p-2 rounded"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
 
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        className="w-full p-2 border rounded"
-        required
-      />
+        {mode === 'signup' && (
+          <div>
+            <label className="block text-sm font-medium">Confirm Password</label>
+            <input
+              type="password"
+              className="w-full border p-2 rounded"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+            />
+          </div>
+        )}
 
-      <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
-        Sign Up
-      </button>
-    </form>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-black text-white py-2 rounded hover:bg-gray-800"
+        >
+          {loading
+            ? mode === 'signup'
+              ? 'Signing Up...'
+              : 'Signing In...'
+            : mode === 'signup'
+            ? 'Sign Up'
+            : 'Sign In'}
+        </button>
+      </form>
+
+      {message && (
+        <p className="text-sm text-center text-red-600">{message}</p>
+      )}
+
+      <p className="text-center text-sm">
+        {mode === 'signup'
+          ? 'Already have an account?'
+          : 'Need an account?'}{' '}
+        <button
+          type="button"
+          onClick={() =>
+            setMode((prev) => (prev === 'signup' ? 'signin' : 'signup'))
+          }
+          className="text-blue-600 underline"
+        >
+          {mode === 'signup' ? 'Sign In' : 'Sign Up'}
+        </button>
+      </p>
+    </div>
   );
 }
