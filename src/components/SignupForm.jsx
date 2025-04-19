@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export default function SignupForm() {
-  const [mode, setMode] = useState('signup'); // 'signup' or 'signin'
+  const [mode, setMode] = useState('signup');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [message, setMessage] = useState('');
@@ -20,36 +21,46 @@ export default function SignupForm() {
       return;
     }
 
-    const authFunc =
-      mode === 'signup'
-        ? supabase.auth.signUp
-        : supabase.auth.signInWithPassword;
+    if (mode === 'signup') {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
 
-        let data, error;
+      if (error) {
+        setMessage(error.message);
+        setLoading(false);
+        return;
+      }
 
-        if (mode === 'signup') {
-          ({ data, error } = await supabase.auth.signUp({
-            email,
-            password,
-          }));
-        } else {
-          ({ data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          }));
+      const userId = data?.user?.id;
+      if (userId) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([{ id: userId, username }]);
+
+        if (profileError) {
+          setMessage('Error saving username: ' + profileError.message);
+          setLoading(false);
+          return;
         }
-        
+      }
 
-    setLoading(false);
-
-    if (error) {
-      setMessage(error.message);
+      setMessage('Check your email to confirm your account.');
+      setLoading(false);
     } else {
-      setMessage(
-        mode === 'signup'
-          ? 'Check your email to confirm your account.'
-          : 'Signed in successfully!'
-      );
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setMessage(error.message);
+      } else {
+        setMessage('Signed in successfully!');
+      }
+
+      setLoading(false);
     }
   };
 
@@ -60,13 +71,26 @@ export default function SignupForm() {
       </h2>
 
       <form onSubmit={handleAuth} className="space-y-3">
+        {mode === 'signup' && (
+          <div>
+            <label className="block text-sm font-medium">Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium">Email</label>
           <input
             type="email"
-            className="w-full border p-2 rounded"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="w-full border p-2 rounded"
             required
           />
         </div>
@@ -75,9 +99,9 @@ export default function SignupForm() {
           <label className="block text-sm font-medium">Password</label>
           <input
             type="password"
-            className="w-full border p-2 rounded"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            className="w-full border p-2 rounded"
             required
           />
         </div>
@@ -87,9 +111,9 @@ export default function SignupForm() {
             <label className="block text-sm font-medium">Confirm Password</label>
             <input
               type="password"
-              className="w-full border p-2 rounded"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
+              className="w-full border p-2 rounded"
               required
             />
           </div>
@@ -110,9 +134,7 @@ export default function SignupForm() {
         </button>
       </form>
 
-      {message && (
-        <p className="text-sm text-center text-red-600">{message}</p>
-      )}
+      {message && <p className="text-sm text-center text-red-600">{message}</p>}
 
       <p className="text-center text-sm">
         {mode === 'signup'

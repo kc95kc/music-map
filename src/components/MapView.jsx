@@ -24,24 +24,62 @@ const selectionIcon = L.icon({
   iconAnchor: [15, 45],
   popupAnchor: [1, -34],
   shadowSize: [45, 45],
-  className: 'opacity-70 saturate-200',
 });
 
 export default function MapView() {
   const [pins, setPins] = useState([]);
   const [selectedPin, setSelectedPin] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
-  const [mode, setMode] = useState(null); // 'submit' or 'view'
+  const [mode, setMode] = useState(null);
   const [clickCoords, setClickCoords] = useState(null);
   const [showSignup, setShowSignup] = useState(false);
+  const [user, setUser] = useState(null);
+  const [username, setUsername] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data }) => {
+      const user = data?.user || null;
+      if (user) {
+        setUser(user);
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+        setUsername(profile?.username || null);
+      }
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const user = session?.user || null;
+      setUser(user);
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+        setUsername(profile?.username || null);
+      }
+    });
+
+    return () => listener?.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fetchPins = async () => {
-      const { data, error } = await supabase.from('submissions').select('*');
+      const { data, error } = await supabase
+        .from('submissions')
+        .select('*, profiles(username)');
       if (error) {
         console.error('Error fetching pins:', error.message);
       } else {
-        setPins(data);
+        const pinsWithUsernames = data.map((pin) => ({
+          ...pin,
+          username: pin.profiles?.username,
+        }));
+        setPins(pinsWithUsernames);
       }
     };
     fetchPins();
@@ -61,7 +99,7 @@ export default function MapView() {
           <span className="text-2xl">🎵</span>
           <h1 className="text-lg font-bold">Music Map</h1>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex space-x-3 items-center">
           <button
             onClick={() => {
               setMode('submit');
@@ -72,24 +110,39 @@ export default function MapView() {
           >
             Submit
           </button>
-          <button
-            onClick={() => setShowSignup(true)}
-            className="text-sm border border-white px-4 py-1 rounded hover:bg-white hover:text-black"
-          >
-            Sign Up
-          </button>
+          {user ? (
+            <>
+              <span className="text-sm">👤 {username}</span>
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  setUser(null);
+                  setUsername(null);
+                }}
+                className="text-sm border border-white px-3 py-1 rounded hover:bg-white hover:text-black"
+              >
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setShowSignup(true)}
+              className="text-sm border border-white px-4 py-1 rounded hover:bg-white hover:text-black"
+            >
+              Sign Up
+            </button>
+          )}
         </div>
       </div>
 
       {/* Sidebar */}
       <div
-        className={`absolute left-0 top-[60px] bottom-0 z-40 bg-white shadow-md border-r border-gray-200 transition-all duration-300
+        className={`absolute left-0 top-[60px] bottom-0 z-40 bg-white shadow-md border-r border-gray-200 transition-all duration-300 overflow-y-auto
         ${collapsed ? 'w-12' : 'w-80 p-4'}`}
       >
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="absolute top-2 right-2 text-gray-500 hover:text-black text-lg"
-          title={collapsed ? 'Expand' : 'Collapse'}
         >
           {collapsed ? '»' : '×'}
         </button>
@@ -122,16 +175,67 @@ export default function MapView() {
             </p>
             <table className="w-full text-sm border mt-2">
               <tbody>
-                {selectedPin.album && (
+                {selectedPin.release_year && (
                   <tr className="border-b">
-                    <td className="font-semibold px-2 py-1">Album</td>
-                    <td className="px-2 py-1">{selectedPin.album}</td>
+                    <td className="font-semibold px-2 py-1">Release Year</td>
+                    <td className="px-2 py-1">{selectedPin.release_year}</td>
                   </tr>
                 )}
-                {selectedPin.song_name && (
+                {selectedPin.wikipedia_link && (
                   <tr className="border-b">
-                    <td className="font-semibold px-2 py-1">Song</td>
-                    <td className="px-2 py-1">{selectedPin.song_name}</td>
+                    <td className="font-semibold px-2 py-1">Wikipedia</td>
+                    <td className="px-2 py-1">
+                      <a
+                        href={selectedPin.wikipedia_link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-500 underline"
+                      >
+                        View
+                      </a>
+                    </td>
+                  </tr>
+                )}
+                {selectedPin.youtube_url && (
+                  <tr className="border-b">
+                    <td className="font-semibold px-2 py-1">YouTube</td>
+                    <td className="px-2 py-1">
+                      <a
+                        href={selectedPin.youtube_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-500 underline"
+                      >
+                        Watch
+                      </a>
+                    </td>
+                  </tr>
+                )}
+                {selectedPin.timestamp && (
+                  <tr className="border-b">
+                    <td className="font-semibold px-2 py-1">Timestamp</td>
+                    <td className="px-2 py-1">{selectedPin.timestamp}</td>
+                  </tr>
+                )}
+                {selectedPin.username && (
+                  <tr className="border-b">
+                    <td className="font-semibold px-2 py-1">Submitted By</td>
+                    <td className="px-2 py-1">
+                      <a
+                        href={`/user/${selectedPin.username}`}
+                        className="text-blue-500 underline"
+                      >
+                        {selectedPin.username}
+                      </a>
+                    </td>
+                  </tr>
+                )}
+                {selectedPin.created_at && (
+                  <tr className="border-b">
+                    <td className="font-semibold px-2 py-1">Date Created</td>
+                    <td className="px-2 py-1">
+                      {new Date(selectedPin.created_at).toLocaleDateString()}
+                    </td>
                   </tr>
                 )}
                 {selectedPin.latitude && selectedPin.longitude && (
@@ -159,12 +263,10 @@ export default function MapView() {
       <MapContainer center={[40, -20]} zoom={2} className="h-full w-full z-10">
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+          attribution='&copy; OpenStreetMap contributors'
         />
         <MapMarkers pins={pins} onPinClick={handlePinClick} />
         <MapClickHandler onClick={setClickCoords} />
-
-        {/* Submission Location Marker */}
         {mode === 'submit' && clickCoords && (
           <Marker
             position={[clickCoords.lat, clickCoords.lng]}

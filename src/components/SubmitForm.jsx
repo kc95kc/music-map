@@ -44,7 +44,9 @@ export default function SubmitForm({ onSuccess, coords }) {
 
     let image_url = null;
     if (imageFile) {
-      const filename = `${Date.now()}_${imageFile.name}`;
+      const safeName = imageFile.name.replace(/[^\w.-]/g, '_'); // replaces anything except letters, numbers, dash, dot
+      const filename = `${Date.now()}_${safeName}`;
+      
       const path = `covers/${filename}`;
 
       const { data, error } = await supabase.storage
@@ -232,9 +234,25 @@ export default function SubmitForm({ onSuccess, coords }) {
       </div>
 
       <div>
-        <label>Upload Cover Image</label>
-        <input type="file" accept="image/*" onChange={handleImageChange} />
-      </div>
+  <label>Upload Cover Image</label>
+  <input
+    type="file"
+    accept="image/*"
+    onChange={(e) => {
+      handleImageChange(e);
+    }}
+  />
+  {imageFile && (
+    <div className="mt-2">
+      <img
+        src={URL.createObjectURL(imageFile)}
+        alt="Preview"
+        className="max-w-full rounded border"
+      />
+    </div>
+  )}
+</div>
+
 
       <div>
         <label>Selected Location</label>
